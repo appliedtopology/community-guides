@@ -14,3 +14,20 @@ To go from this to something distributable, there are several phases we need to 
 4. Set up continuous builds of binary wheels for common platforms. A nice touch is to automatically compile the C++ parts for a range of commonly used platforms and make those available. GitHub has excellent support for this kind of regular recompilation.
 5. Test the python package against [test.pypi.org](test.pypi.org). Make sure we have figured out any and all bugs or issues with our distributable package.
 6. Publish the package on PyPI. After this step, all users _should_ be able to do `pip install <libraryname>` and get access to the code you wrote, hopefully with minimal issues along the way.
+
+For many of these steps, there are many different ways you could accomplish the step. We will be showing one specific tool in each step - but may include a couple of links to alternatives as we go.
+
+## Make a library
+
+## Automate build
+
+## Python glue layer
+
+## Distributable package
+
+## Continuous builds
+
+## Test.PyPI
+
+## PyPI
+
