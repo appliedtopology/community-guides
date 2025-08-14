@@ -19,7 +19,11 @@ For many of these steps, there are many different ways you could accomplish the 
 
 ## Make a library
 
-## Automate build
+In [phase2](phase2/) we can find a refactored version of the code. Most steps have been moved out into separate functions, and we now have a header file that specifies any data types we have created and gives function declarations for every function we created.
+
+## Automate build
+
+
 
 ## Python glue layer
 
