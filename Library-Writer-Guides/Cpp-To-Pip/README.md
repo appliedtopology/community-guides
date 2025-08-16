@@ -74,11 +74,65 @@ The library subdirectory can include a line `target_include_directories(unionfin
 
 With the subdirectory organization, any compiled files can then be found in the corresponding subdirectory hierarchy within the `build` directory that you use.
 
-### Add structure to install library and headers, and package the project
+### Installation and Packaging
 
+For library development, you will want to keep on reading in the [CMake tutorial](https://cmake.org/cmake/help/latest/guide/tutorial), for details on how to make the library easy to install, header files easy to install, and the library easy to package for distribution.
 
+For this tutorial, it is far more important to set up the Python wheel installation processes, so we will return to CMake once we have the Python connections in place.
 
 ## Python glue layer
+
+There are several options available for exposing the C++ library functionality to Python - some of them automatically expose everything, but most require a small amount of glue code to be written - code that specifies what functions and variables to expose, and how. Common options include [Boost.Python](https://www.boost.org/doc/libs/1_89_0/libs/python/doc/html/index.html) and [PyBind11](https://pybind11.readthedocs.io/). Here we will show how to use PyBind11. Our result will be in the directory [phase5/](phase5/).
+
+In a new file, `glue.cpp`, we build up the glue layer:
+
+```
+#include <pybind11/pybind11.h>
+
+#include "union-find.hpp"
+
+namespace py = pybind11;
+
+PYBIND11_MODULE(union_find, m) {
+  m.doc() = "Example glue code to build PyBind11 Python Bindings out of existing research code.";
+
+  m.def("find", &find, "The Find step - traverse parent pointer links until you find the root.");
+  m.def("unite", &unite, "The Union step - splice one union-find-tree onto another one, fusing the corresponding sets.");
+  m.def("make_nodes", &make_nodes, "Initiate node objects to represent all entries in a point cloud.");
+  m.def("make_distances", &make_distances, "Compute all pairwise distances, naively.");
+  m.def("sorted_edges", &sorted_edges, "Returns edges sorted by edge length according to the naive distance function.");
+  m.def("find_deaths_criticals", &find_deaths_criticals, "Construct the union-find tree and compute persistent H0 death times and H1 birth times.");
+  py::class_<node>(m, "node")
+    .def_readwrite("dataindex", &node::dataindex)
+    .def_readwrite("parent", &node::parent);
+}
+```
+
+The module itself is defined in the block following the `PYBIND11_MODULE` declaration. Each method in the module is defined with `m.def`, which takes the python name, a reference to the C++ function, and a docstring. Classes are more intricate to define, and rely on using the `py::class_` functions. Variables can be shared using `m.attr("pythonname", &cpp_name, "Docstring");`.
+
+Next up, we need to get hold of PyBind11. Install it with your favorite package manager, or with `pip install`. The CMake functionality _should_ find the directory it got installed to - if not, you can use a `set(pybind11_DIR <path-to-pybind11>)` line early in `CMakeLists.txt` to give the build system a pointer.
+
+In your project `CMakeLists.txt`, include the lines
+```
+find_package(Python COMPONENTS Interpreter Development REQUIRED)
+find_package(pybind11 REQUIRED)
+```
+
+Either in the project file, or in the file for your library subdirectory -- wherever you already defined your library -- it's now time to define the python bindings. If in your subdirectory `CMakeLists.txt`, you need to include the `find_package` lines for Python here as well. Then add the following lines to add a python module (listing all relevant source files), and to add the module as an installation target for the python extension you now have written.
+```
+pybind11_add_module(unionfind glue.cpp union-find.cpp)
+install(TARGETS unionfind DESTINATION .)
+```
+
+If you have a command adding a directory to find additional header files, this command needs to be replicated for the module here as well.
+```
+target_include_directories(unionfind INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+```
+
+If you at this point (...as I did when writing this...) accidentally named your library build target and your python extension build target, find some way of renaming them to avoid a name collision.
+
+For [phase5/](phase5), I also removed the initial demo executable and the library definitions, focusing on making this a python package.
+
 
 ## Distributable package
 
