@@ -23,9 +23,117 @@ In [phase2](phase2/) we can find a refactored version of the code. Most steps ha
 
 ## Automate build
 
+There are many options available for a C++ build system. Hopefully you picked one when you started - if not, now is a good time to fix that. Here, we will set it up with a minimalistic [CMake](https://cmake.org) build system.
 
+To set up for CMake, we first need to create a file `CMakeLists.txt`. A minimal such could look like this:
+```
+cmake_minimum_required(VERSION 3.20)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+project(UnionFind)
+add_executable(demo union-find.cpp)
+```
+
+If you use any modern C++ feature, make sure you pick the right C++ language standard here, and pick a CMake modern enough that it understand the language standard specification. By version 3.20, everything up to and including C++23 is handled.
+
+You also need to make the `set(CMAKE_CXX_STANDARD 23)` and `set(CMAKE_CXX_STANDARD_REQUIRED True)` rows happen before `add_executable(demo union-find.cpp)`.
+
+With this `CMakeLists.txt` in place, you can create a build directory, go into it, run `cmake <path-to-CMakeLists.txt-file>` and then `cmake --build .` to compile your project.
+
+With a working CMake in place, let's add some more pieces. We can keep track of project versioning, and update our project to include automatically created files. We do this by:
+
+* Changing `CMakeLists.txt` - we are changing the project definition line, and adding lines to configure the file `union-find-config.h` and to expand the search area for include files. The resulting file looks like this:
+```
+cmake_minimum_required(VERSION 3.20)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+project(UnionFind VERSION 0.1)
+configure_file(union-find-config.h.in union-find-config.h)
+add_executable(demo union-find.cpp)
+target_include_directories(demo PUBLIC "${PROJECT_BINARY_DIR}")
+```
+
+* Add a file `union-find-config.h.in` that specifies how to create the dynamically generated `union-find-config.h`:
+```
+// Configured options and settings for the project
+#define UnionFind_VERSION_MAJOR @UnionFind_VERSION_MAJOR@
+#define UnionFind_VERSION_MINOR @UnionFind_VERSION_MINOR@
+```
+
+* Include `union-find-config.h` in our source code, and refer to its content in our code.
+
+### Refactor for a CMake configured library
+
+In order to make a library, we may want to separate our executable code from our library code. So next, we split `union-find.cpp` into one file with the implementation of everything specified in `union-find.hpp`, and a separate file with everything else. You can see the resulting split in [phase4/union-find.cpp](phase4/union-find.cpp) and [phase4/union-find-exec.cpp](phase4/union-find-exec.cpp).
+
+We also allow ourselves to split library and executable into different subdirectories. The `add_executable` declaration, and a `add_library` declaration that lists all the source files that make up the library can be included in `CMakeLists.txt` files in the subdirectories, and the subdirectories included in the toplevel `CMakeLists.txt` with `add_subdirectory(src/lib)` -- one command for each subdirectory with an `CMakeLists.txt` file.
+
+When writing this tutorial, the first refactor attempt showed that the implementation of the function `dist2` still referred to the demo data, and was not generic enough. So it had to be rewritten, which required us to change its call signature slightly. Changes thus propagate to both the header and source files.
+
+The library subdirectory can include a line `target_include_directories(unionfind INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})` to make the include file locations discoverable without editing makefiles for any users of the library in the subdirectory.
+
+With the subdirectory organization, any compiled files can then be found in the corresponding subdirectory hierarchy within the `build` directory that you use.
+
+### Installation and Packaging
+
+For library development, you will want to keep on reading in the [CMake tutorial](https://cmake.org/cmake/help/latest/guide/tutorial), for details on how to make the library easy to install, header files easy to install, and the library easy to package for distribution.
+
+For this tutorial, it is far more important to set up the Python wheel installation processes, so we will return to CMake once we have the Python connections in place.
 
 ## Python glue layer
+
+There are several options available for exposing the C++ library functionality to Python - some of them automatically expose everything, but most require a small amount of glue code to be written - code that specifies what functions and variables to expose, and how. Common options include [Boost.Python](https://www.boost.org/doc/libs/1_89_0/libs/python/doc/html/index.html) and [PyBind11](https://pybind11.readthedocs.io/). Here we will show how to use PyBind11. Our result will be in the directory [phase5/](phase5/).
+
+In a new file, `glue.cpp`, we build up the glue layer:
+
+```
+#include <pybind11/pybind11.h>
+
+#include "union-find.hpp"
+
+namespace py = pybind11;
+
+PYBIND11_MODULE(union_find, m) {
+  m.doc() = "Example glue code to build PyBind11 Python Bindings out of existing research code.";
+
+  m.def("find", &find, "The Find step - traverse parent pointer links until you find the root.");
+  m.def("unite", &unite, "The Union step - splice one union-find-tree onto another one, fusing the corresponding sets.");
+  m.def("make_nodes", &make_nodes, "Initiate node objects to represent all entries in a point cloud.");
+  m.def("make_distances", &make_distances, "Compute all pairwise distances, naively.");
+  m.def("sorted_edges", &sorted_edges, "Returns edges sorted by edge length according to the naive distance function.");
+  m.def("find_deaths_criticals", &find_deaths_criticals, "Construct the union-find tree and compute persistent H0 death times and H1 birth times.");
+  py::class_<node>(m, "node")
+    .def_readwrite("dataindex", &node::dataindex)
+    .def_readwrite("parent", &node::parent);
+}
+```
+
+The module itself is defined in the block following the `PYBIND11_MODULE` declaration. Each method in the module is defined with `m.def`, which takes the python name, a reference to the C++ function, and a docstring. Classes are more intricate to define, and rely on using the `py::class_` functions. Variables can be shared using `m.attr("pythonname", &cpp_name, "Docstring");`.
+
+Next up, we need to get hold of PyBind11. Install it with your favorite package manager, or with `pip install`. The CMake functionality _should_ find the directory it got installed to - if not, you can use a `set(pybind11_DIR <path-to-pybind11>)` line early in `CMakeLists.txt` to give the build system a pointer.
+
+In your project `CMakeLists.txt`, include the lines
+```
+find_package(Python COMPONENTS Interpreter Development REQUIRED)
+find_package(pybind11 REQUIRED)
+```
+
+Either in the project file, or in the file for your library subdirectory -- wherever you already defined your library -- it's now time to define the python bindings. If in your subdirectory `CMakeLists.txt`, you need to include the `find_package` lines for Python here as well. Then add the following lines to add a python module (listing all relevant source files), and to add the module as an installation target for the python extension you now have written.
+```
+pybind11_add_module(unionfind glue.cpp union-find.cpp)
+install(TARGETS unionfind DESTINATION .)
+```
+
+If you have a command adding a directory to find additional header files, this command needs to be replicated for the module here as well.
+```
+target_include_directories(unionfind INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+```
+
+If you at this point (...as I did when writing this...) accidentally named your library build target and your python extension build target, find some way of renaming them to avoid a name collision.
+
+For [phase5/](phase5), I also removed the initial demo executable and the library definitions, focusing on making this a python package. Furthermore, PyBind11 makes it easy to access numpy arrays, so we set our functions up to take data coming in as numpy arrays. This requires us to include headerfiles `pybind11/stl.h` and `pybind11/numpy.h`. With this in place, we can accept function parameters of type `py::array_t<double>`, and then use functions like `nparray.ndim()`, `nparray.shape()`, `nparray.data()` to access information about them.
+
+In the implementation in [phase5/glue.cpp](phase5/glue.cpp), we write wrapper functions to extract array size before calling the C++ functions, and let these do some input checking before copying the data out into a more accessible data type. As you use these bindings in your own project, there are ways to act directly on the numpy array data in memory without copying - read the [PyBind11 documentation](https://pybind11.readthedocs.io/en/stable/advanced/pycpp/numpy.html) for deeper details.
 
 ## Distributable package
 
