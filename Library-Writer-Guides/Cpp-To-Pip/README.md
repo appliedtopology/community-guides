@@ -131,8 +131,9 @@ target_include_directories(unionfind INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
 If you at this point (...as I did when writing this...) accidentally named your library build target and your python extension build target, find some way of renaming them to avoid a name collision.
 
-For [phase5/](phase5), I also removed the initial demo executable and the library definitions, focusing on making this a python package.
+For [phase5/](phase5), I also removed the initial demo executable and the library definitions, focusing on making this a python package. Furthermore, PyBind11 makes it easy to access numpy arrays, so we set our functions up to take data coming in as numpy arrays. This requires us to include headerfiles `pybind11/stl.h` and `pybind11/numpy.h`. With this in place, we can accept function parameters of type `py::array_t<double>`, and then use functions like `nparray.ndim()`, `nparray.shape()`, `nparray.data()` to access information about them.
 
+In the implementation in [phase5/glue.cpp](phase5/glue.cpp), we write wrapper functions to extract array size before calling the C++ functions, and let these do some input checking before copying the data out into a more accessible data type. As you use these bindings in your own project, there are ways to act directly on the numpy array data in memory without copying - read the [PyBind11 documentation](https://pybind11.readthedocs.io/en/stable/advanced/pycpp/numpy.html) for deeper details.
 
 ## Distributable package
 
