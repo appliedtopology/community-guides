@@ -137,6 +137,93 @@ In the implementation in [phase5/glue.cpp](phase5/glue.cpp), we write wrapper fu
 
 ## Distributable package
 
+To make the package distributable with the Python packaging infrastructure, the first step (after the Python community standardized packaging a while ago) is to write a project specification. This is stored in the file `pyproject.toml` in the root of your project directory.
+
+`pyproject.toml` contains blocks of declarations, each under a header written in square brackets:
+
+### Build Backend
+
+We will demonstrate how to use the package [py-build-cmake](https://tttapa.github.io/py-build-cmake/)
+
+```
+[build-system]
+requires = ["py-build-cmake~=0.5.0"]
+build-backend = "py_build_cmake.build"
+```
+
+### Project specification
+
+In the next block, basics for the project specification follows. (there are fancy tricks for letting your build backend pull information out of the source code, or git tags, et.c. - but editing the specification will work as a starting point for you)
+
+```
+[project]
+name = "unionfind"
+version = "0.1.0"
+dependencies = ["numpy"]
+requires-python = ">= 3.6"
+authors = [
+  {name = "Mikael Vejdemo-Johansson", email = "michiexile@gmail.com"},
+]
+maintainers = [
+  {name = "Mikael Vejdemo-Johansson", email = "michiexile@gmail.com"},
+]
+description = "A demo project to teach pip packaging to writers of scientific computation libraries in C++."
+readme = "README.md"
+license = "MIT"
+keywords = ["software development", "packaging", "distribution", "C++", "cmake"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+]
+```
+
+If your project name is different from the Python module, you will need to include the module name later on in the tool section. The `classifiers` field has classifiers for the PyPI package indexing site: possible classifiers are listed [at their website](https://pypi.org/classifiers).
+
+### Tool-specific data
+
+`py-build-cmake` takes a number of additional pieces of input: make sure the source distribution includes everything needed, and set up expectations on CMake configuration:
+```
+[tool.py-build-cmake.sdist]
+include = ["CMakeLists.txt", "*.cpp", "*.hpp", "*.h.in"]
+
+[tool.py-build-cmake.cmake]
+minimum_version = "3.20"
+build_type = "Release"
+build_args = ["-j"]
+```
+
+Finally, the documentation for `py-build-cmake` recommends we make sure to include an installation rule in the `CMakeLists.txt`.
+
+### Directory structure
+
+For `py-build-cmake` to work correctly (without quite a lot of extra work), the project needs to follow a specific directory structure:
+
+```
+        unionfind_project/
+        ├── pyproject.toml
+        ├── unionfind/
+        │   ├── __init__.py
+        │   ├── other_python_files.py
+        │   ├── cpp_extension_source_files.cpp
+        |   └─- cpp_extension_header_files.hpp
+        └── CMakeLists.txt
+```
+
+So we create the package directory, move files in and create an empty `__init__.py` (needed to make the right kind of Python package).
+
+Once this is all in place, we have an automatically buildable and installable Python extension package. Create a virtual environment (to not dump the package in with your system setup), and test the installation process:
+
+```
+mkdir testdirectory
+cd testdirectory
+python -m venv testenv
+source testenv/bin/activate
+pip install <path-to-unionfind_project>
+```
+
+And then try starting python, loading the library and sending in some data.
+
 ## Continuous builds
 
 ## Test.PyPI
