@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.20)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+project(UnionFind VERSION 0.1)
+configure_file(union-find-config.h.in union-find-config.h)
+add_executable(demo union-find.cpp)
+target_include_directories(demo PUBLIC "${PROJECT_BINARY_DIR}")
